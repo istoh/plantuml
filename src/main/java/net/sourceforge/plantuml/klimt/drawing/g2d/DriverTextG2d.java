@@ -72,36 +72,35 @@ public class DriverTextG2d implements UDriver<UText, Graphics2D> {
 		this.stringBounder = stringBounder;
 	}
 
-	public void draw(UText shape, double x, double y, ColorMapper mapper, UParam param, Graphics2D g2d) {
-		final FontConfiguration fontConfiguration = shape.getFontConfiguration();
+        public void draw(UText shape, double x, double y, ColorMapper mapper, UParam param, Graphics2D g2d) {
+                final FontConfiguration fontConfiguration = shape.getFontConfiguration();
 
-		if (fontConfiguration.getColor().isTransparent())
-			return;
+                if (fontConfiguration.getColor().isTransparent())
+                        return;
 
-		final String text = shape.getText();
+                final String text = shape.getText();
 
-		final List<StyledString> strings = StyledString.build(text);
+                final List<StyledString> strings = StyledString.build(text);
+                final double angle = shape.getAngle();
 
-		for (StyledString styledString : strings) {
-			final FontConfiguration fc = styledString.getStyle() == FontStyle.BOLD ? fontConfiguration.bold()
-					: fontConfiguration;
-			x += printSingleText(g2d, fc, styledString.getText(), x, y, mapper);
-		}
-	}
+                for (StyledString styledString : strings) {
+                        final FontConfiguration fc = styledString.getStyle() == FontStyle.BOLD ? fontConfiguration.bold()
+                                        : fontConfiguration;
+                        x += printSingleText(g2d, fc, styledString.getText(), x, y, mapper, angle);
+                }
+        }
 
-	private double printSingleText(Graphics2D g2d, final FontConfiguration fontConfiguration, final String text,
-			double x, double y, ColorMapper mapper) {
-		final UFont font = fontConfiguration.getFont();
-		final HColor extended = fontConfiguration.getExtendedColor();
+        private double printSingleText(Graphics2D g2d, final FontConfiguration fontConfiguration, final String text,
+                        double x, double y, ColorMapper mapper, double angleDeg) {
+                final UFont font = fontConfiguration.getFont();
+                final HColor extended = fontConfiguration.getExtendedColor();
 
-		final XDimension2D dim = stringBounder.calculateDimension(font, text);
-		final double height = max(10, dim.getHeight());
-		final double width = dim.getWidth();
+                final XDimension2D dim = stringBounder.calculateDimension(font, text);
+                final double height = max(10, dim.getHeight());
+                final double width = dim.getWidth();
 
-		final int orientation = 0;
-
-		g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-		g2d.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
+                g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+                g2d.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
 		// https://stackoverflow.com/questions/31536952/how-to-fix-text-quality-in-java-graphics
 		// https://stackoverflow.com/questions/72818320/improve-java2d-drawing-quality-on-hi-resolution-monitors
 		/*
@@ -111,38 +110,41 @@ public class DriverTextG2d implements UDriver<UText, Graphics2D> {
 		 * RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
 		 */
 
-		g2d.setFont(font.getUnderlayingFont(text));
+                g2d.setFont(font.getUnderlayingFont(text));
 
-		if (orientation == 90) {
-			final AffineTransform orig = g2d.getTransform();
-			g2d.translate(x, y);
-			g2d.rotate(Math.PI / 2);
-			g2d.drawString(text, 0, 0);
-			g2d.setTransform(orig);
+                final double theta = Math.toRadians(angleDeg);
 
-		} else if (orientation == 0) {
+                if (Math.abs(theta) > 0.0001) {
+                        final AffineTransform orig = g2d.getTransform();
+                        g2d.translate(x, y);
+                        g2d.rotate(theta);
+                        g2d.setColor(fontConfiguration.getColor().toColor(mapper));
+                        g2d.drawString(text, 0, 0);
+                        g2d.setTransform(orig);
 
-			if (fontConfiguration.containsStyle(FontStyle.BACKCOLOR)) {
-				final Rectangle2D.Double area = new Rectangle2D.Double(x, y - height + 1.5, width, height);
-				if (extended instanceof HColorGradient) {
-					final GradientPaint paint = DriverRectangleG2d.getPaintGradient(x, y, mapper, width, height,
-							extended);
-					g2d.setPaint(paint);
-					g2d.fill(area);
-				} else {
-					final Color backColor = extended.toColor(mapper);
-					if (backColor != null) {
-						g2d.setColor(backColor);
-						g2d.setBackground(backColor);
-						g2d.fill(area);
-					}
-				}
-			}
-			visible.ensureVisible(x, y - height + 1.5);
-			visible.ensureVisible(x + width, y + 1.5);
+                } else {
 
-			g2d.setColor(fontConfiguration.getColor().toColor(mapper));
-			g2d.drawString(text, (float) x, (float) y);
+                        if (fontConfiguration.containsStyle(FontStyle.BACKCOLOR)) {
+                                final Rectangle2D.Double area = new Rectangle2D.Double(x, y - height + 1.5, width, height);
+                                if (extended instanceof HColorGradient) {
+                                        final GradientPaint paint = DriverRectangleG2d.getPaintGradient(x, y, mapper, width, height,
+                                                        extended);
+                                        g2d.setPaint(paint);
+                                        g2d.fill(area);
+                                } else {
+                                        final Color backColor = extended.toColor(mapper);
+                                        if (backColor != null) {
+                                                g2d.setColor(backColor);
+                                                g2d.setBackground(backColor);
+                                                g2d.fill(area);
+                                        }
+                                }
+                        }
+                        visible.ensureVisible(x, y - height + 1.5);
+                        visible.ensureVisible(x + width, y + 1.5);
+
+                        g2d.setColor(fontConfiguration.getColor().toColor(mapper));
+                        g2d.drawString(text, (float) x, (float) y);
 
 			if (fontConfiguration.containsStyle(FontStyle.UNDERLINE)) {
 				if (extended != null)

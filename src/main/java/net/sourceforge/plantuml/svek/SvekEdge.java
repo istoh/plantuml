@@ -85,6 +85,7 @@ import net.sourceforge.plantuml.klimt.geom.XPoint2D;
 import net.sourceforge.plantuml.klimt.shape.DotPath;
 import net.sourceforge.plantuml.klimt.shape.TextBlock;
 import net.sourceforge.plantuml.klimt.shape.TextBlockUtils;
+import net.sourceforge.plantuml.klimt.shape.TextBlockRotated;
 import net.sourceforge.plantuml.klimt.shape.UDrawable;
 import net.sourceforge.plantuml.klimt.shape.ULine;
 import net.sourceforge.plantuml.klimt.shape.UPolygon;
@@ -891,10 +892,15 @@ public class SvekEdge extends XAbstractEdge implements XEdge, UDrawable {
 
 		ug = ug.apply(UStroke.simple()).apply(color);
 
-		if (hasNoteLabelText() && this.labelXY != null
-				&& (link.getNote() == null || link.getNote().getStrategy() != NoteLinkStrategy.HALF_NOT_PRINTED))
-			this.labelText.drawU(ug.apply(new UTranslate(x + this.labelXY.getPosition().getX() + labelShield,
-					y + this.labelXY.getPosition().getY() + labelShield)));
+                if (hasNoteLabelText() && this.labelXY != null
+                                && (link.getNote() == null || link.getNote().getStrategy() != NoteLinkStrategy.HALF_NOT_PRINTED)) {
+                        final double angle = Math.toDegrees(Math.atan2(
+                                        dotPath.getEndPoint().getY() - dotPath.getStartPoint().getY(),
+                                        dotPath.getEndPoint().getX() - dotPath.getStartPoint().getX()));
+                        final TextBlock rotated = new TextBlockRotated(this.labelText, angle);
+                        rotated.drawU(ug.apply(new UTranslate(x + this.labelXY.getPosition().getX() + labelShield,
+                                        y + this.labelXY.getPosition().getY() + labelShield)));
+                }
 
 		if (this.startTailText != null && this.startTailLabelXY != null && this.startTailLabelXY.getPosition() != null)
 			this.startTailText.drawU(ug.apply(new UTranslate(x + this.startTailLabelXY.getPosition().getX(),

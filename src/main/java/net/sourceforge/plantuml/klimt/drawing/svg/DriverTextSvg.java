@@ -50,6 +50,7 @@ import net.sourceforge.plantuml.klimt.font.UFontContext;
 import net.sourceforge.plantuml.klimt.geom.XDimension2D;
 import net.sourceforge.plantuml.klimt.shape.UText;
 import net.sourceforge.plantuml.project.lang.Words;
+import java.util.Map;
 
 public class DriverTextSvg implements UDriver<UText, SvgGraphics> {
 	// ::remove file when __HAXE__
@@ -141,10 +142,14 @@ public class DriverTextSvg implements UDriver<UText, SvgGraphics> {
 
 		}
 
-		final HColor textColor = fontConfiguration.getColor();
-		svg.setFillColor(textColor.toSvg(mapper));
-		svg.text(text, x, y, font.getFamily(text, UFontContext.SVG), font.getSize(), fontWeight, fontStyle, textDecoration,
-				width, fontConfiguration.getAttributes(), backColor);
+                final HColor textColor = fontConfiguration.getColor();
+                svg.setFillColor(textColor.toSvg(mapper));
+                final Map<String, String> attrs = new java.util.HashMap<>(fontConfiguration.getAttributes());
+                if (shape.getAngle() != 0) {
+                        attrs.put("transform", "rotate(" + (-shape.getAngle()) + " " + x + " " + y + ")");
+                }
+                svg.text(text, x, y, font.getFamily(text, UFontContext.SVG), font.getSize(), fontWeight, fontStyle, textDecoration,
+                                width, attrs, backColor);
 
 		if (extraLine != null) {
 			svg.setStrokeColor(extraLine.toSvg(mapper));

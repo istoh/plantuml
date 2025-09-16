@@ -41,7 +41,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -58,6 +60,7 @@ import net.sourceforge.plantuml.klimt.font.FontConfiguration;
 import net.sourceforge.plantuml.klimt.font.StringBounder;
 import net.sourceforge.plantuml.klimt.font.UFont;
 import net.sourceforge.plantuml.klimt.geom.XDimension2D;
+import net.sourceforge.plantuml.klimt.geom.XPoint2D;
 import net.sourceforge.plantuml.klimt.shape.AbstractTextBlock;
 import net.sourceforge.plantuml.klimt.shape.TextBlock;
 import net.sourceforge.plantuml.klimt.shape.UEllipse;
@@ -71,8 +74,8 @@ import net.sourceforge.plantuml.openiconic.SvgPath;
 
 public class SvgNanoParser implements Sprite, GrayLevelRange {
 
-	private static final Pattern P_TEXT_OR_DRAW = Pattern
-			.compile("(\\<text .*?\\</text\\>)|(\\<(svg|path|g|circle|ellipse)[^<>]*\\>)|(\\</[^<>]*\\>)");
+        private static final Pattern P_TEXT_OR_DRAW = Pattern
+                        .compile("(\\<text .*?\\</text\\>)|(\\<(svg|path|g|circle|ellipse|rect|line)[^<>]*\\>)|(\\</[^<>]*\\>)");
 
 	private static final Pattern P_TEXT = Pattern.compile("\\<text[^<>]*\\>(.*?)\\</text\\>");
 	private static final Pattern P_FONT_SIZE = Pattern.compile("^(\\d+)p[tx]$");
@@ -101,18 +104,26 @@ public class SvgNanoParser implements Sprite, GrayLevelRange {
 	private static final Pattern DATA_STROKE_WIDTH = Pattern.compile("stroke-width" + equals_something);
 	private static final Pattern DATA_STYLE = Pattern.compile("style" + equals_something);
 	private static final Pattern DATA_TRANSFORM = Pattern.compile("transform" + equals_something);
-	private static final Pattern DATA_X = Pattern.compile("x" + equals_something);
-	private static final Pattern DATA_Y = Pattern.compile("y" + equals_something);
+        private static final Pattern DATA_X = Pattern.compile("x" + equals_something);
+        private static final Pattern DATA_Y = Pattern.compile("y" + equals_something);
+        private static final Pattern DATA_X1 = Pattern.compile("x1" + equals_something);
+        private static final Pattern DATA_Y1 = Pattern.compile("y1" + equals_something);
+        private static final Pattern DATA_X2 = Pattern.compile("x2" + equals_something);
+        private static final Pattern DATA_Y2 = Pattern.compile("y2" + equals_something);
+        private static final Pattern DATA_WIDTH = Pattern.compile("width" + equals_something);
+        private static final Pattern DATA_HEIGHT = Pattern.compile("height" + equals_something);
+        private static final Pattern DATA_ID = Pattern.compile("(?i)id" + equals_something);
 
 	private static final String colon_something = ":([^;\"]+)";
 	private static final Pattern STYLE_FILL = Pattern.compile(Pattern.quote("fill") + colon_something);
 	private static final Pattern STYLE_FONT_SIZE = Pattern.compile(Pattern.quote("font-size") + colon_something);
 	private static final Pattern STYLE_FONT_FAMILY = Pattern.compile(Pattern.quote("font-family") + colon_something);
 
-	private final List<String> data = new ArrayList<>();
-	private int minGray = 999;
-	private int maxGray = -1;
-	private List<String> svg;
+        private final List<String> data = new ArrayList<>();
+        private int minGray = 999;
+        private int maxGray = -1;
+        private List<String> svg;
+        private final Map<String, XPoint2D> anchors = new HashMap<>();
 
 	private String extract(Pattern p, String s) {
 		final Matcher m = p.matcher(s);
@@ -152,13 +163,17 @@ public class SvgNanoParser implements Sprite, GrayLevelRange {
 				ugs = applyTransform(ugs, s);
 			} else if (s.startsWith("<circle ")) {
 				drawCircle(ugs, s, stackG);
-			} else if (s.startsWith("<ellipse ")) {
-				drawEllipse(ugs, s, stackG);
-			} else if (s.startsWith("<text ")) {
-				drawText(ugs, s, stackG);
-			} else {
-				System.err.println("**?=" + s);
-			}
+                        } else if (s.startsWith("<ellipse ")) {
+                                drawEllipse(ugs, s, stackG);
+                        } else if (s.startsWith("<rect ")) {
+                                drawRect(ugs, s, stackG);
+                        } else if (s.startsWith("<line ")) {
+                                drawLine(ugs, s, stackG);
+                        } else if (s.startsWith("<text ")) {
+                                drawText(ugs, s, stackG);
+                        } else {
+                                System.err.println("**?=" + s);
+                        }
 		}
 	}
 
@@ -167,23 +182,25 @@ public class SvgNanoParser implements Sprite, GrayLevelRange {
 			for (String singleLine : svg) {
 				final Matcher m = P_TEXT_OR_DRAW.matcher(singleLine);
 				while (m.find()) {
-					final String s = m.group(0);
-					if (s.startsWith("<path") || s.startsWith("<g ") || s.startsWith("<g>") || s.startsWith("</g>")
-							|| s.startsWith("<circle ") || s.startsWith("<ellipse ") || s.startsWith("<text "))
-						data.add(s);
-					else if (s.startsWith("<svg") || s.startsWith("</svg")) {
-						// Ignore
-					} else
-						System.err.println("???=" + s);
+                                        final String s = m.group(0);
+                                        if (s.startsWith("<path") || s.startsWith("<g ") || s.startsWith("<g>")
+                                                        || s.startsWith("</g>") || s.startsWith("<circle ")
+                                                        || s.startsWith("<ellipse ") || s.startsWith("<text ")
+                                                        || s.startsWith("<rect ") || s.startsWith("<line "))
+                                                data.add(s);
+                                        else if (s.startsWith("<svg") || s.startsWith("</svg")) {
+                                                // Ignore
+                                        } else
+                                                System.err.println("???=" + s);
 				}
 			}
 		}
 		return Collections.unmodifiableCollection(data);
 	}
 
-	private UGraphicWithScale applyFillAndStroke(UGraphicWithScale ugs, String s, Deque<String> stackG) {
-		final String fillString = getFillString(s, stackG);
-		final String strokeString = extract(DATA_STROKE, s);
+        private UGraphicWithScale applyFillAndStroke(UGraphicWithScale ugs, String s, Deque<String> stackG) {
+                final String fillString = getFillString(s, stackG);
+                final String strokeString = extract(DATA_STROKE, s);
 
 		final String strokeWidth = extract(DATA_STROKE_WIDTH, s);
 		if (strokeWidth != null) {
@@ -208,8 +225,16 @@ public class SvgNanoParser implements Sprite, GrayLevelRange {
 			ugs = ugs.apply(fill.bg());
 		}
 
-		return ugs;
-	}
+                return ugs;
+        }
+
+        private void registerPoint(String s, double x, double y, UGraphicWithScale ugs) {
+                final String id = extract(DATA_ID, s);
+                if (id != null) {
+                        XPoint2D p = new XPoint2D(x, y).transform(ugs.getAffineTransform());
+                        anchors.put(id, p);
+                }
+        }
 
 	private void drawCircle(UGraphicWithScale ugs, String s, Deque<String> stackG) {
 		ugs = applyFillAndStroke(ugs, s, stackG);
@@ -224,16 +249,17 @@ public class SvgNanoParser implements Sprite, GrayLevelRange {
 		final double cx = Double.parseDouble(extract(DATA_CX, s)) * scalex;
 		final double cy = Double.parseDouble(extract(DATA_CY, s)) * scaley;
 		final double rx = Double.parseDouble(extract(DATA_R, s)) * scalex;
-		final double ry = Double.parseDouble(extract(DATA_R, s)) * scaley;
+                final double ry = Double.parseDouble(extract(DATA_R, s)) * scaley;
 
-		final UTranslate translate = new UTranslate(deltax + cx - rx, deltay + cy - ry);
-		ugs.apply(translate).draw(UEllipse.build(rx * 2, ry * 2));
-	}
+                final UTranslate translate = new UTranslate(deltax + cx - rx, deltay + cy - ry);
+                ugs.apply(translate).draw(UEllipse.build(rx * 2, ry * 2));
+                registerPoint(s, deltax + cx, deltay + cy, ugs);
+        }
 
-	private void drawEllipse(UGraphicWithScale ugs, String s, Deque<String> stackG) {
-		final boolean debug = false;
-		ugs = applyFillAndStroke(ugs, s, stackG);
-		ugs = applyTransform(ugs, s);
+        private void drawEllipse(UGraphicWithScale ugs, String s, Deque<String> stackG) {
+                final boolean debug = false;
+                ugs = applyFillAndStroke(ugs, s, stackG);
+                ugs = applyTransform(ugs, s);
 
 		final double cx = Double.parseDouble(extract(DATA_CX, s));
 		final double cy = Double.parseDouble(extract(DATA_CY, s));
@@ -265,12 +291,53 @@ public class SvgNanoParser implements Sprite, GrayLevelRange {
 
 		path.closePath();
 
-		path = path.translate(cx - rx, cy - ry);
-		path = path.affine(ugs.getAffineTransform(), ugs.getAngle(), ugs.getScale());
+                path = path.translate(cx - rx, cy - ry);
+                path = path.affine(ugs.getAffineTransform(), ugs.getAngle(), ugs.getScale());
 
-		ugs.draw(path);
+                ugs.draw(path);
 
-	}
+                registerPoint(s, cx, cy, ugs);
+        }
+
+        private void drawRect(UGraphicWithScale ugs, String s, Deque<String> stackG) {
+                ugs = applyFillAndStroke(ugs, s, stackG);
+                ugs = applyTransform(ugs, s);
+
+                final double x = Double.parseDouble(extract(DATA_X, s));
+                final double y = Double.parseDouble(extract(DATA_Y, s));
+                final double w = Double.parseDouble(extract(DATA_WIDTH, s));
+                final double h = Double.parseDouble(extract(DATA_HEIGHT, s));
+
+                UPath path = UPath.none();
+                path.moveTo(x, y);
+                path.lineTo(x + w, y);
+                path.lineTo(x + w, y + h);
+                path.lineTo(x, y + h);
+                path.closePath();
+
+                path = path.affine(ugs.getAffineTransform(), ugs.getAngle(), ugs.getScale());
+                ugs.draw(path);
+
+                registerPoint(s, x + w / 2, y + h / 2, ugs);
+        }
+
+        private void drawLine(UGraphicWithScale ugs, String s, Deque<String> stackG) {
+                ugs = applyFillAndStroke(ugs, s, stackG);
+                ugs = applyTransform(ugs, s);
+
+                final double x1 = Double.parseDouble(extract(DATA_X1, s));
+                final double y1 = Double.parseDouble(extract(DATA_Y1, s));
+                final double x2 = Double.parseDouble(extract(DATA_X2, s));
+                final double y2 = Double.parseDouble(extract(DATA_Y2, s));
+
+                UPath path = UPath.none();
+                path.moveTo(x1, y1);
+                path.lineTo(x2, y2);
+                path = path.affine(ugs.getAffineTransform(), ugs.getAngle(), ugs.getScale());
+                ugs.draw(path);
+
+                registerPoint(s, (x1 + x2) / 2, (y1 + y2) / 2, ugs);
+        }
 
 	private void drawText(UGraphicWithScale ugs, String s, Deque<String> stackG) {
 		final double x = Double.parseDouble(extract(DATA_X, s));
@@ -443,7 +510,7 @@ public class SvgNanoParser implements Sprite, GrayLevelRange {
 	}
 
 	@Override
-	public TextBlock asTextBlock(final HColor fontColor, final HColor forcedColor, final double scale) {
+        public TextBlock asTextBlock(final HColor fontColor, final HColor forcedColor, final double scale) {
 
 		final UImageSvg data = new UImageSvg(svg.get(0), scale);
 		final double width = data.getWidth();
@@ -458,10 +525,14 @@ public class SvgNanoParser implements Sprite, GrayLevelRange {
 			public XDimension2D calculateDimension(StringBounder stringBounder) {
 				return new XDimension2D(width, height);
 			}
-		};
-	}
+                };
+        }
 
-	private void computeMinMaxGray() {
+        public XPoint2D getPoint(String id) {
+                return anchors.get(id);
+        }
+
+        private void computeMinMaxGray() {
 		for (String s : getData()) {
 			if (s.contains("<path ") || s.contains("<g ") || s.contains("<circle ") || s.contains("<ellipse ")) {
 				final String fillString = getFillString(s, null);

@@ -43,29 +43,33 @@ import net.sourceforge.plantuml.klimt.geom.XDimension2D;
 
 public class UText implements UShape {
 
-	private final String text;
-	private final FontConfiguration font;
-	private final int orientation;
+        private final String text;
+        private final FontConfiguration font;
+        private final double angle;
 
 	@Override
 	public String toString() {
 		return "UText[" + text + "]";
 	}
 
-	private UText(String text, FontConfiguration font, int orientation) {
-		assert text.indexOf('\t') == -1;
-		this.text = text.replace(Jaws.BLOCK_E1_NEWLINE, '\u21b5').replace(Jaws.BLOCK_E1_BREAKLINE, '\u23ce');
-		this.font = font;
-		this.orientation = orientation;
-	}
+        private UText(String text, FontConfiguration font, double angle) {
+                assert text.indexOf('\t') == -1;
+                this.text = text.replace(Jaws.BLOCK_E1_NEWLINE, '\u21b5').replace(Jaws.BLOCK_E1_BREAKLINE, '\u23ce');
+                this.font = font;
+                this.angle = angle;
+        }
 
-	public static UText build(String text, FontConfiguration font) {
-		return new UText(text, font, 0);
-	}
+        public static UText build(String text, FontConfiguration font) {
+                return new UText(text, font, 0);
+        }
 
-	public UText withOrientation(int orientation) {
-		return new UText(text, font, orientation);
-	}
+        public UText withOrientation(int orientation) {
+                return withAngle(orientation);
+        }
+
+        public UText withAngle(double angle) {
+                return new UText(text, font, angle);
+        }
 
 	public String getText() {
 		return text;
@@ -81,9 +85,13 @@ public class UText implements UShape {
 	}
 	// ::done
 
-	public final int getOrientation() {
-		return orientation;
-	}
+        public final int getOrientation() {
+                return (int) angle;
+        }
+
+        public final double getAngle() {
+                return angle;
+        }
 
 	public XDimension2D calculateDimension(StringBounder stringBounder) {
 		return stringBounder.calculateDimension(font.getFont(), text);
